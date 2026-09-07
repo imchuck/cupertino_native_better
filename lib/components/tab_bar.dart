@@ -109,6 +109,7 @@ class CNTabBar extends StatefulWidget {
     this.shrinkCentered = true,
     this.splitSpacing =
         12.0, // Apple's recommended spacing for visual separation
+    this.splitSymmetric = false,
     this.searchItem,
     this.searchController,
     this.labelFontFamily,
@@ -174,6 +175,16 @@ class CNTabBar extends StatefulWidget {
   ///
   /// Defaults to 12pt following Apple's HIG recommendations for visual separation.
   final double splitSpacing; // gap between left/right halves when split
+
+  /// Constrain both halves of a split bar to the SAME width.
+  ///
+  /// Without this the halves are content-sized and pinned to opposite edges,
+  /// so the gap between them is only centred by accident. Turn it on when you
+  /// draw something of your own in that gap — a centre action button — and
+  /// need to know where the gap is.
+  ///
+  /// Off by default: it changes the layout of existing split bars.
+  final bool splitSymmetric;
 
   /// Optional search tab configuration.
   ///
@@ -287,6 +298,7 @@ class _CNTabBarState extends State<CNTabBar> {
   bool? _lastSplit;
   int? _lastRightCount;
   double? _lastSplitSpacing;
+  bool? _lastSplitSymmetric;
   double? _lastIconSize;
   String? _lastLabelFontFamily;
   double? _lastLabelFontSize;
@@ -737,6 +749,7 @@ class _CNTabBarState extends State<CNTabBar> {
       'split': _hasSearch ? true : widget.split,
       'rightCount': widget.rightCount,
       'splitSpacing': widget.splitSpacing,
+      'splitSymmetric': widget.splitSymmetric,
       'style': capturedStyle
         ..addAll({
           if (capturedBackgroundColor != null)
@@ -870,6 +883,7 @@ class _CNTabBarState extends State<CNTabBar> {
     _lastSplit = widget.split;
     _lastRightCount = widget.rightCount;
     _lastSplitSpacing = widget.splitSpacing;
+    _lastSplitSymmetric = widget.splitSymmetric;
     _lastLabelFontFamily = widget.labelFontFamily;
     _lastLabelFontSize = widget.labelFontSize;
 
@@ -1098,16 +1112,19 @@ class _CNTabBarState extends State<CNTabBar> {
       // Layout updates (split / insets)
       if (_lastSplit != widget.split ||
           _lastRightCount != widget.rightCount ||
-          _lastSplitSpacing != widget.splitSpacing) {
+          _lastSplitSpacing != widget.splitSpacing ||
+          _lastSplitSymmetric != widget.splitSymmetric) {
         await ch.invokeMethod('setLayout', {
           'split': widget.split,
           'rightCount': widget.rightCount,
           'splitSpacing': widget.splitSpacing,
+          'splitSymmetric': widget.splitSymmetric,
           'selectedIndex': widget.currentIndex,
         });
         _lastSplit = widget.split;
         _lastRightCount = widget.rightCount;
         _lastSplitSpacing = widget.splitSpacing;
+        _lastSplitSymmetric = widget.splitSymmetric;
         _requestIntrinsicSize();
       }
     } catch (e) {

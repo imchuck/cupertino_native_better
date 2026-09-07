@@ -28,6 +28,10 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
   private var leftInsetVal: CGFloat = 0
   private var rightInsetVal: CGFloat = 0
   private var splitSpacingVal: CGFloat = 12 // Apple's recommended spacing for visual separation
+  /// When true, both halves of a split tab bar are constrained to the SAME
+  /// width, which is the only way the gap between them lands on the
+  /// container's centre. Off by default: it changes existing layouts.
+  private var splitSymmetricVal: Bool = false
   private var currentIconSizes: [CGFloat] = [] // Track icon sizes for dynamic height calculation
   private var labelFontFamily: String? = nil
   private var labelFontSize: CGFloat = 0 // 0 means system default (~10pt)
@@ -95,6 +99,7 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
       if let s = dict["split"] as? NSNumber { split = s.boolValue }
       if let rc = dict["rightCount"] as? NSNumber { rightCount = rc.intValue }
       if let sp = dict["splitSpacing"] as? NSNumber { splitSpacingVal = CGFloat(truncating: sp) }
+      if let sy = dict["splitSymmetric"] as? Bool { splitSymmetricVal = sy }
       // content insets controlled by Flutter padding; keep zero here
     }
     // Font is read after super.init() below to use self.
@@ -244,7 +249,28 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
       let adjustedTotal = adjustedLeftWidth + adjustedRightWidth + spacing
       
       // If total exceeds container, fall back to proportional widths
-      if adjustedTotal > container.bounds.width {
+      // Symmetric split: both halves constrained to the SAME width, so the gap
+      // between them is centred on the container. Expressed with a relative
+      // constraint instead of a computed width on purpose — reading
+      // `bounds.width` during the first layout pass yields 0, and a constant
+      // derived from it would be negative.
+      if splitSymmetricVal {
+        let rTop = right.topAnchor.constraint(equalTo: container.topAnchor, constant: 14)
+        let rBottom = right.bottomAnchor.constraint(equalTo: container.bottomAnchor)
+        let lTop = left.topAnchor.constraint(equalTo: container.topAnchor, constant: 14)
+        let lBottom = left.bottomAnchor.constraint(equalTo: container.bottomAnchor)
+        rTop.priority = .defaultHigh
+        rBottom.priority = .defaultHigh
+        lTop.priority = .defaultHigh
+        lBottom.priority = .defaultHigh
+        NSLayoutConstraint.activate([
+          left.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: leftInset),
+          right.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -rightInset),
+          left.trailingAnchor.constraint(equalTo: right.leadingAnchor, constant: -spacing),
+          left.widthAnchor.constraint(equalTo: right.widthAnchor),
+          rTop, rBottom, lTop, lBottom,
+        ])
+      } else if adjustedTotal > container.bounds.width {
         let rightFraction = CGFloat(rightCount) / CGFloat(count)
         let rTop = right.topAnchor.constraint(equalTo: container.topAnchor, constant: 14)
         let rBottom = right.bottomAnchor.constraint(equalTo: container.bottomAnchor)
@@ -586,6 +612,7 @@ channel.setMethodCallHandler { [weak self] call, result in
           let leftInset = self.leftInsetVal
           let rightInset = self.rightInsetVal
           if let sp = args["splitSpacing"] as? NSNumber { self.splitSpacingVal = CGFloat(truncating: sp) }
+          if let sy = args["splitSymmetric"] as? Bool { self.splitSymmetricVal = sy }
           let selectedIndex = (args["selectedIndex"] as? NSNumber)?.intValue ?? 0
           // Remove existing bars
           self.tabBar?.removeFromSuperview(); self.tabBar = nil
@@ -698,7 +725,28 @@ channel.setMethodCallHandler { [weak self] call, result in
             let adjustedLeftWidth = max(leftWidth, minItemWidth * CGFloat(count - rightCount))
             let adjustedTotal = adjustedLeftWidth + adjustedRightWidth + spacing
             
-            if adjustedTotal > self.container.bounds.width {
+            // Symmetric split: both halves constrained to the SAME width, so the gap
+            // between them is centred on the container. Expressed with a relative
+            // constraint instead of a computed width on purpose — reading
+            // `bounds.width` during the first layout pass yields 0, and a constant
+            // derived from it would be negative.
+            if splitSymmetricVal {
+              let rTop = right.topAnchor.constraint(equalTo: self.container.topAnchor, constant: 14)
+              let rBottom = right.bottomAnchor.constraint(equalTo: self.container.bottomAnchor)
+              let lTop = left.topAnchor.constraint(equalTo: self.container.topAnchor, constant: 14)
+              let lBottom = left.bottomAnchor.constraint(equalTo: self.container.bottomAnchor)
+              rTop.priority = .defaultHigh
+              rBottom.priority = .defaultHigh
+              lTop.priority = .defaultHigh
+              lBottom.priority = .defaultHigh
+              NSLayoutConstraint.activate([
+                left.leadingAnchor.constraint(equalTo: self.container.leadingAnchor, constant: leftInset),
+                right.trailingAnchor.constraint(equalTo: self.container.trailingAnchor, constant: -rightInset),
+                left.trailingAnchor.constraint(equalTo: right.leadingAnchor, constant: -spacing),
+                left.widthAnchor.constraint(equalTo: right.widthAnchor),
+                rTop, rBottom, lTop, lBottom,
+              ])
+            } else if adjustedTotal > self.container.bounds.width {
               let rightFraction = CGFloat(rightCount) / CGFloat(count)
               let rTop = right.topAnchor.constraint(equalTo: self.container.topAnchor, constant: 14)
               let rBottom = right.bottomAnchor.constraint(equalTo: self.container.bottomAnchor)
