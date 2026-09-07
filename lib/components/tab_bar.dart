@@ -110,6 +110,7 @@ class CNTabBar extends StatefulWidget {
     this.splitSpacing =
         12.0, // Apple's recommended spacing for visual separation
     this.splitSymmetric = false,
+    this.onSplitGap,
     this.searchItem,
     this.searchController,
     this.labelFontFamily,
@@ -185,6 +186,19 @@ class CNTabBar extends StatefulWidget {
   ///
   /// Off by default: it changes the layout of existing split bars.
   final bool splitSymmetric;
+
+  /// Dónde cae el hueco entre las dos mitades de una barra `split`, MEDIDO
+  /// sobre la vista nativa después del layout.
+  ///
+  /// `center` y `width` van en puntos y en coordenadas de la propia barra;
+  /// `containerWidth` es el ancho total, para poder pasar de uno a otro.
+  ///
+  /// Existe porque el hueco NO se puede deducir desde Dart: una `UITabBar` no
+  /// llena su marco —dibuja su píldora ajustada al contenido— y hasta ahora el
+  /// lado nativo solo devolvía el ancho total. Quien quiera pintar un botón
+  /// central en ese hueco necesita esto.
+  final void Function(double center, double width, double containerWidth)?
+      onSplitGap;
 
   /// Optional search tab configuration.
   ///
@@ -933,7 +947,15 @@ class _CNTabBarState extends State<CNTabBar> {
   }
 
   Future<dynamic> _onMethodCall(MethodCall call) async {
-    if (call.method == 'valueChanged') {
+    if (call.method == 'splitGap') {
+      final args = call.arguments as Map?;
+      final c = (args?['center'] as num?)?.toDouble();
+      final w = (args?['width'] as num?)?.toDouble();
+      final cw = (args?['containerWidth'] as num?)?.toDouble();
+      if (c != null && w != null && cw != null) {
+        widget.onSplitGap?.call(c, w, cw);
+      }
+    } else if (call.method == 'valueChanged') {
       final args = call.arguments as Map?;
       final idx = (args?['index'] as num?)?.toInt();
       if (idx != null) {
