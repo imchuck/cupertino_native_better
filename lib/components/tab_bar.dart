@@ -896,6 +896,15 @@ class _CNTabBarState extends State<CNTabBar> {
     final ch = MethodChannel('CupertinoNativeTabBar_$id');
     _channel = ch;
     ch.setMethodCallHandler(_onMethodCall);
+    // El nativo empuja la medida del hueco al montar, pero eso pasa ANTES de
+    // que este manejador exista: el primer envío se pierde. Se pide en cuanto
+    // hay quien escuche, y otra vez tras el primer layout.
+    if (widget.split) {
+      ch.invokeMethod('requestSplitGap').catchError((_) {});
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ch.invokeMethod('requestSplitGap').catchError((_) {});
+      });
+    }
     _lastIndex = widget.currentIndex;
     _lastTint = resolveColorToArgb(_effectiveTint, context);
     _lastBg = resolveColorToArgb(widget.backgroundColor, context);

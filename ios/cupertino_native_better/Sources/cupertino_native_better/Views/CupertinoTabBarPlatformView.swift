@@ -334,7 +334,7 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
         // siguiente al de la barra que la contiene.
         DispatchQueue.main.async { [weak self, weak left, weak right] in
           guard let self = self, let left = left, let right = right else { return }
-          self.reportarHueco(left, right)
+          self.reportarHuecoConReintentos(left, right)
         }
         // Re-assign items to force label rendering
         let leftItems = left.items
@@ -461,6 +461,11 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
 channel.setMethodCallHandler { [weak self] call, result in
       guard let self = self else { result(nil); return }
       switch call.method {
+      case "requestSplitGap":
+        // Dart pide la medida cuando ya tiene su manejador puesto. Es lo que
+        // cierra la carrera con `onPlatformViewCreated`.
+        self.atenderPeticionDeHueco()
+        result(nil)
       case "getIntrinsicSize":
         if let bar = self.tabBar ?? self.tabBarLeft ?? self.tabBarRight {
           let size = bar.sizeThatFits(CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude))
@@ -812,7 +817,7 @@ channel.setMethodCallHandler { [weak self] call, result in
               // siguiente al de la barra que la contiene.
               DispatchQueue.main.async { [weak self, weak left, weak right] in
                 guard let self = self, let left = left, let right = right else { return }
-                self.reportarHueco(left, right)
+                self.reportarHuecoConReintentos(left, right)
               }
               // Re-assign items to force label rendering
               let leftItems = left.items
@@ -1182,7 +1187,10 @@ channel.setMethodCallHandler { [weak self] call, result in
   /// su marco. Esto lo mide después del layout y lo manda; el consumidor no
   /// tiene que saber nada de las tripas.
   private func reportarHueco(_ left: UITabBar, _ right: UITabBar) {
-    guard isSplit else { return }
+    // Sin `guard isSplit`: las dos barras llegan por parámetro, así que si
+    // existen es que hay split. Ese guard leía una bandera que en el camino de
+    // creación se asigna DESPUÉS de montar el layout, y devolvía antes de
+    // tiempo.
     let l = rectanguloDibujado(left)
     let r = rectanguloDibujado(right)
     let ancho = r.minX - l.maxX
@@ -1197,6 +1205,24 @@ channel.setMethodCallHandler { [weak self] call, result in
       // falta.
       "dump": volcado(left, right),
     ])
+  }
+
+  /// Reporta el hueco varias veces, y no una.
+  ///
+  /// El primer envío sale al crear la vista, **antes de que Dart registre su
+  /// manejador** en `onPlatformViewCreated`: se emite y no lo escucha nadie.
+  /// Costó dos capturas descubrirlo, porque un mensaje perdido no se distingue
+  /// de una medida que da cero.
+  ///
+  /// Además la píldora de vidrio no está colocada en el primer pase, así que
+  /// los reintentos sirven dos veces: para que llegue, y para que llegue bien.
+  private func reportarHuecoConReintentos(_ left: UITabBar, _ right: UITabBar) {
+    for retraso in [0.0, 0.15, 0.6, 1.5] {
+      DispatchQueue.main.asyncAfter(deadline: .now() + retraso) { [weak self, weak left, weak right] in
+        guard let self = self, let left = left, let right = right else { return }
+        self.reportarHueco(left, right)
+      }
+    }
   }
 
   /// La jerarquía real de las dos barras, para poder MIRARLA en vez de
@@ -1219,6 +1245,15 @@ channel.setMethodCallHandler { [weak self] call, result in
     }
     return "contenedor w=\(String(format: "%.1f", container.bounds.width))\n"
       + linea("IZQ", left) + linea("DER", right)
+  }
+
+  /// Deja que Dart PIDA la medida, en vez de solo recibirla.
+  ///
+  /// Es el cierre de la carrera: cuando Dart tiene su manejador puesto,
+  /// pregunta, y aquí siempre hay algo que responder.
+  func atenderPeticionDeHueco() {
+    guard let l = tabBarLeft, let r = tabBarRight else { return }
+    reportarHueco(l, r)
   }
 
   func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
