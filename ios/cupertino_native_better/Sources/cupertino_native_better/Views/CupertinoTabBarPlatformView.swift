@@ -249,12 +249,29 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
       let adjustedTotal = adjustedLeftWidth + adjustedRightWidth + spacing
       
       // If total exceeds container, fall back to proportional widths
-      // Symmetric split: both halves constrained to the SAME width, so the gap
-      // between them is centred on the container. Expressed with a relative
-      // constraint instead of a computed width on purpose — reading
-      // `bounds.width` during the first layout pass yields 0, and a constant
-      // derived from it would be negative.
+      // Symmetric split: the GAP is centred on the container, which is what you
+      // need when you draw a centre action button into it.
+      //
+      // Two things had to be true, and only one of them is obvious:
+      //
+      //  1. The two halves are pinned symmetrically about `centerXAnchor`, so
+      //     the gap between their frames straddles the centre by construction.
+      //  2. Each half is sized to its OWN content. Measured on an iPhone 17 Pro,
+      //     a UITabBar does NOT fill its frame: it draws its Liquid Glass pill
+      //     hugging its content, ~30pt in from the container edge. Give it a
+      //     frame wider than its content and the pill floats inside it, so
+      //     equal FRAMES still produce a gap that is off-centre — 14,7pt off,
+      //     with four items and two labels per side. Content-sized frames leave
+      //     no slack for the pill to float in.
+      //
+      // `systemLayoutSizeFitting` and not `sizeThatFits(.zero)`: the latter
+      // reports the available width, not the content width, which is why the
+      // branch below almost always falls through to the proportional path.
       if splitSymmetricVal {
+        let lFit = left.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).width
+        let rFit = right.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).width
+        let lW = max(lFit, minItemWidth * CGFloat(count - rightCount))
+        let rW = max(rFit, minItemWidth * CGFloat(rightCount))
         let rTop = right.topAnchor.constraint(equalTo: container.topAnchor, constant: 14)
         let rBottom = right.bottomAnchor.constraint(equalTo: container.bottomAnchor)
         let lTop = left.topAnchor.constraint(equalTo: container.topAnchor, constant: 14)
@@ -264,10 +281,10 @@ class CupertinoTabBarPlatformView: NSObject, FlutterPlatformView, UITabBarDelega
         lTop.priority = .defaultHigh
         lBottom.priority = .defaultHigh
         NSLayoutConstraint.activate([
-          left.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: leftInset),
-          right.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -rightInset),
-          left.trailingAnchor.constraint(equalTo: right.leadingAnchor, constant: -spacing),
-          left.widthAnchor.constraint(equalTo: right.widthAnchor),
+          left.trailingAnchor.constraint(equalTo: container.centerXAnchor, constant: -spacing / 2),
+          right.leadingAnchor.constraint(equalTo: container.centerXAnchor, constant: spacing / 2),
+          left.widthAnchor.constraint(equalToConstant: lW),
+          right.widthAnchor.constraint(equalToConstant: rW),
           rTop, rBottom, lTop, lBottom,
         ])
       } else if adjustedTotal > container.bounds.width {
@@ -725,12 +742,29 @@ channel.setMethodCallHandler { [weak self] call, result in
             let adjustedLeftWidth = max(leftWidth, minItemWidth * CGFloat(count - rightCount))
             let adjustedTotal = adjustedLeftWidth + adjustedRightWidth + spacing
             
-            // Symmetric split: both halves constrained to the SAME width, so the gap
-            // between them is centred on the container. Expressed with a relative
-            // constraint instead of a computed width on purpose — reading
-            // `bounds.width` during the first layout pass yields 0, and a constant
-            // derived from it would be negative.
+            // Symmetric split: the GAP is centred on the container, which is what you
+            // need when you draw a centre action button into it.
+            //
+            // Two things had to be true, and only one of them is obvious:
+            //
+            //  1. The two halves are pinned symmetrically about `centerXAnchor`, so
+            //     the gap between their frames straddles the centre by construction.
+            //  2. Each half is sized to its OWN content. Measured on an iPhone 17 Pro,
+            //     a UITabBar does NOT fill its frame: it draws its Liquid Glass pill
+            //     hugging its content, ~30pt in from the container edge. Give it a
+            //     frame wider than its content and the pill floats inside it, so
+            //     equal FRAMES still produce a gap that is off-centre — 14,7pt off,
+            //     with four items and two labels per side. Content-sized frames leave
+            //     no slack for the pill to float in.
+            //
+            // `systemLayoutSizeFitting` and not `sizeThatFits(.zero)`: the latter
+            // reports the available width, not the content width, which is why the
+            // branch below almost always falls through to the proportional path.
             if splitSymmetricVal {
+              let lFit = left.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).width
+              let rFit = right.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).width
+              let lW = max(lFit, minItemWidth * CGFloat(count - rightCount))
+              let rW = max(rFit, minItemWidth * CGFloat(rightCount))
               let rTop = right.topAnchor.constraint(equalTo: self.container.topAnchor, constant: 14)
               let rBottom = right.bottomAnchor.constraint(equalTo: self.container.bottomAnchor)
               let lTop = left.topAnchor.constraint(equalTo: self.container.topAnchor, constant: 14)
@@ -740,10 +774,10 @@ channel.setMethodCallHandler { [weak self] call, result in
               lTop.priority = .defaultHigh
               lBottom.priority = .defaultHigh
               NSLayoutConstraint.activate([
-                left.leadingAnchor.constraint(equalTo: self.container.leadingAnchor, constant: leftInset),
-                right.trailingAnchor.constraint(equalTo: self.container.trailingAnchor, constant: -rightInset),
-                left.trailingAnchor.constraint(equalTo: right.leadingAnchor, constant: -spacing),
-                left.widthAnchor.constraint(equalTo: right.widthAnchor),
+                left.trailingAnchor.constraint(equalTo: self.container.centerXAnchor, constant: -spacing / 2),
+                right.leadingAnchor.constraint(equalTo: self.container.centerXAnchor, constant: spacing / 2),
+                left.widthAnchor.constraint(equalToConstant: lW),
+                right.widthAnchor.constraint(equalToConstant: rW),
                 rTop, rBottom, lTop, lBottom,
               ])
             } else if adjustedTotal > self.container.bounds.width {
