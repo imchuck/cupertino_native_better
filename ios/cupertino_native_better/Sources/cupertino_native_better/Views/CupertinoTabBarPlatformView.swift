@@ -1191,7 +1191,34 @@ channel.setMethodCallHandler { [weak self] call, result in
       "center": Double(l.maxX + ancho / 2),
       "width": Double(ancho),
       "containerWidth": Double(container.bounds.width),
+      // El volcado va SIEMPRE, no solo cuando algo falla. Averiguar dónde
+      // dibuja UIKit su píldora costó cinco capturas de diez minutos; que la
+      // jerarquía viaje con cada medida es lo que hace que la sexta no haga
+      // falta.
+      "dump": volcado(left, right),
     ])
+  }
+
+  /// La jerarquía real de las dos barras, para poder MIRARLA en vez de
+  /// adivinarla.
+  private func volcado(_ left: UITabBar, _ right: UITabBar) -> String {
+    func linea(_ etiqueta: String, _ bar: UITabBar) -> String {
+      var t = "\(etiqueta) frame=\(fmt(bar.convert(bar.bounds, to: container)))\n"
+      for v in bar.subviews {
+        let n = NSStringFromClass(type(of: v))
+        t += "   · \(n) \(fmt(bar.convert(v.frame, to: container))) hidden=\(v.isHidden) alpha=\(v.alpha)\n"
+        for w in v.subviews {
+          let m = NSStringFromClass(type(of: w))
+          t += "       - \(m) \(fmt(v.convert(w.frame, to: container)))\n"
+        }
+      }
+      return t
+    }
+    func fmt(_ r: CGRect) -> String {
+      String(format: "[%.1f→%.1f w%.1f]", r.minX, r.maxX, r.width)
+    }
+    return "contenedor w=\(String(format: "%.1f", container.bounds.width))\n"
+      + linea("IZQ", left) + linea("DER", right)
   }
 
   func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {

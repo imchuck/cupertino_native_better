@@ -111,6 +111,7 @@ class CNTabBar extends StatefulWidget {
         12.0, // Apple's recommended spacing for visual separation
     this.splitSymmetric = false,
     this.onSplitGap,
+    this.onSplitDebug,
     this.searchItem,
     this.searchController,
     this.labelFontFamily,
@@ -199,6 +200,13 @@ class CNTabBar extends StatefulWidget {
   /// central en ese hueco necesita esto.
   final void Function(double center, double width, double containerWidth)?
       onSplitGap;
+
+  /// La jerarquía de vistas de las dos mitades, tal cual, cada vez que se mide.
+  ///
+  /// Para herramientas de diseño. Dónde dibuja UIKit su píldora dentro del
+  /// marco no está documentado y cambia entre versiones; esto deja verlo sin
+  /// gastar una vuelta de build en descubrirlo.
+  final void Function(String dump)? onSplitDebug;
 
   /// Optional search tab configuration.
   ///
@@ -955,6 +963,8 @@ class _CNTabBarState extends State<CNTabBar> {
       if (c != null && w != null && cw != null) {
         widget.onSplitGap?.call(c, w, cw);
       }
+      final dump = args?['dump'] as String?;
+      if (dump != null) widget.onSplitDebug?.call(dump);
     } else if (call.method == 'valueChanged') {
       final args = call.arguments as Map?;
       final idx = (args?['index'] as num?)?.toInt();
